@@ -189,6 +189,16 @@ https://github.com/user-attachments/assets/a5577b71-de89-497d-b927-a0314fcd1235
 
   * `src/index.ts` - Data connection and streaming service
 
+
+## Demo
+1. PoC_0: Stream Visualization Video
+
+
+https://github.com/user-attachments/assets/973ddab1-1ff0-4d82-8477-9246426ea5c2
+
+
+
+
 ## Acknowledgments
 
 * Autodesk Tandem API
