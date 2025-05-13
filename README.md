@@ -4,8 +4,8 @@ This repository contains research materials, technical demonstrations, and proof
 
 ## Repository Structure
 
-* **`/Docs`**: Contains documents summarizing research findings, insights, and analysis related to Digital Twin technologies.
-* **`/MossDT`**: Holds implementations of Technical Demos and Proof-of-Concept (PoC) projects showcasing practical applications of our research.
+* **[`/Docs`](https://github.com/mossland/DigitalTwin/tree/main/Docs)**: Contains documents summarizing research findings, insights, and analysis related to Digital Twin technologies.
+* **[`/MossDT`](https://github.com/mossland/DigitalTwin/tree/main/MossDT)**: Holds implementations of Technical Demos and Proof-of-Concept (PoC) projects showcasing practical applications of our research.
 
 ## About Mossland Digital Twin Research
 
