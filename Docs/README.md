@@ -15,3 +15,10 @@ A detailed exploration of Digital Twin technology, including its definition, arc
 ### [LLM-Assisted BIM Data Extraction for Digital Twin Energy Management](https://github.com/mossland/DigitalTwin/blob/main/Docs/llm_bim_digital_twin_energy_management.md)
 
 Describes the use of Large Language Models (LLMs) in extracting and enriching BIM data from gbXML files for advanced Digital Twin energy management. The document covers the workflow of transforming BIM data into simulation-ready energy models, automating data enrichment, and enhancing simulation accuracy with AI assistance.
+
+
+### [Smart Building Digital Twin Development Process](https://github.com/mossland/DigitalTwin/blob/main/Docs/smart_building_digital_twin_development_process.md)
+Smart building digital twins combine BIM models, IoT sensor data, and AI to create dynamic, real-time replicas of physical buildings. This enables predictive maintenance, energy optimization, and autonomous control through simulation, monitoring, and data-driven decision-making.
+
+### [Autodesk Revit and Autodesk Tandem: Applications in the Digital Twin Environment](https://github.com/mossland/DigitalTwin/blob/main/Docs/autodesk_revit_and_tandem.md)
+This document outlines how Autodesk Revit and Autodesk Tandem integrate to create digital twins for smart buildings. Revit is used to design detailed BIM models, while Tandem connects these models with real-time data for facility monitoring, simulation, and optimized operations.
