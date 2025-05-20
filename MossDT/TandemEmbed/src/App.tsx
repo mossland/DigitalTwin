@@ -40,6 +40,7 @@ const forgeUnitToAbbr: any = {
 function App() {
 	const [tandemViewer, setTandemViewer] = useState<TandemViewer | null>(null);
 
+	const [isReady, setIsReady] = useState<boolean>(false);
 	const [showUi, setShowUi] = useState<boolean>(true);
 	const [streamData, setStreamData] = useState<IStreamData | null>(null);
 	const chartStreamData = useMemo(() => {
@@ -64,7 +65,7 @@ function App() {
 
 					});
 					const datasets = [{
-						label: `${streamData.schema[k].name} (${forgeUnitToAbbr[streamData.schema[k].forgeUnit ? streamData.schema[k].forgeUnit : 'percentage' ]})`,
+						label: `${streamData.schema[k].name} (${forgeUnitToAbbr[streamData.schema[k].forgeUnit ? streamData.schema[k].forgeUnit : 'percentage']})`,
 						data: sortedKeys.map((sk) => {
 							return (timeSerieseObj as any)[sk];
 						}),
@@ -172,8 +173,17 @@ function App() {
 			}
 			await tandemViewer.initialize(viewerRef.current as HTMLElement);
 			const facilityList = await tandemViewer.fetchFacilities();
+			
 			await tandemViewer.openFacility(facilityList[0]);
-			// console.log(Object.keys(tandemViewer.viewer.listeners));
+			tandemViewer.app.listeners['dtFacetsLoaded'].push({
+				once: true,
+				priority: 0,
+				callbackFn: async (_: any) => {
+					tandemViewer.viewer.setLightPreset('Dark Sky');
+					setIsReady(true);
+				},
+			});
+			
 			tandemViewer.viewer.listeners['aggregateSelection'].push({
 				once: false,
 				priority: 0,
@@ -289,6 +299,17 @@ function App() {
 		<>
 			<div className={styles.viewerContainer}>
 				<div id={styles.viewer} ref={viewerRef}></div>
+				{
+					!isReady && (
+						<div className={styles.loadingContainer}>
+							<div className={styles.textContainer}>
+								<h1>MossLab</h1>
+								<h2>Digital Twin</h2>
+							</div>
+							<div className={styles.loadingSpinner}></div>
+						</div>
+					)
+				}
 			</div>
 			{
 				showUi && (
@@ -330,7 +351,6 @@ function App() {
 					</div>
 				)
 			}
-
 		</>
 	)
 }

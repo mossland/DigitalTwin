@@ -42,7 +42,6 @@ export default class TandemViewer {
                     theme: 'dark-theme',
                 });
                 await this.viewer.start();
-                
                 av.endpoint.HTTP_REQUEST_HEADERS['Authorization'] = `Bearer ${import.meta.env.VITE_TANDEM_ACCESS_TOKEN}`;
                 this.app = new (window as any).Autodesk.Tandem.DtApp();
                 (window as any).DT_APP = this.app;

@@ -1,6 +1,13 @@
+.viewerContainer {
+    width: 100%;
+    height: 100%;
+    background-color: #333333;
+}
+
 #viewer {
     width: 100%;
     height: 100%;
+    background-color: #333333;
 }
 
 .uiContainer {
@@ -13,7 +20,7 @@
     box-sizing: border-box;
     padding: 1em;
 
-    
+
     position: fixed;
     right: 0;
     top: 0;
@@ -34,11 +41,14 @@
                 padding: 0;
                 font-size: 1em;
             }
+
             font-size: 14px;
         }
+
         .cardBody {
             box-sizing: border-box;
             padding: 10px 0;
+
             .cardBodyItem {
                 h2 {
                     font-size: 14px;
@@ -47,6 +57,7 @@
                     padding: 0;
                     margin: 0;
                 }
+
                 p {
                     margin: 0;
                     padding: 0;
@@ -55,6 +66,7 @@
                     white-space: pre-wrap;
                     overflow-wrap: anywhere;
                 }
+
                 .chartWrapper {
                     display: flex;
                     flex-direction: column;
@@ -70,7 +82,74 @@
                     }
                 }
             }
-            
+
+        }
+    }
+}
+
+.loadingContainer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #000000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-evenly;
+    z-index: 3;
+    user-select: none;
+
+    .textContainer {
+        text-align: center;
+        h1 {
+            margin: 0;
+            padding: 0;
+            font-weight: 400;
+            color: #15f6b6;
+        }
+    
+        h2 {
+            color: #fff;
+            margin: 10px 0;
+        }
+    }
+
+    
+
+    .loadingSpinner {
+        width: 24px;
+        height: 24px;
+        border: 6px solid #FFF;
+        border-radius: 50%;
+        display: inline-block;
+        position: relative;
+        box-sizing: border-box;
+        animation: rotation 1s linear infinite;
+
+        &:after {
+            content: '';
+            box-sizing: border-box;
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 3px solid;
+            border-color: #15f6b6 transparent;
+        }
+
+        @keyframes rotation {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
     }
 }
