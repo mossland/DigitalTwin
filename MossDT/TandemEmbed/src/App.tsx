@@ -2,6 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import bluebird from 'bluebird';
 import dayjs from 'dayjs';
 import { Chart } from 'chart.js/auto';
+import * as THREE from 'three';
+import Lottie from "lottie-react";
+import loadingAnim from './loading.json';
 
 import TandemClient, { IStreamDataResponse } from './util/TandemClient';
 import TandemViewer from './util/TandemViewer';
@@ -173,17 +176,65 @@ function App() {
 			}
 			await tandemViewer.initialize(viewerRef.current as HTMLElement);
 			const facilityList = await tandemViewer.fetchFacilities();
-			
+
 			await tandemViewer.openFacility(facilityList[0]);
 			tandemViewer.app.listeners['dtFacetsLoaded'].push({
 				once: true,
 				priority: 0,
 				callbackFn: async (_: any) => {
 					tandemViewer.viewer.setLightPreset('Dark Sky');
+					const allModels = tandemViewer.viewer.getAllModels();
+					allModels.forEach((model: any) => {
+						if (model.modelProps.dataSource.fileName.toLowerCase().includes('architectural') || model.modelProps.dataSource.fileName.toLowerCase().includes('facades') || model.modelProps.dataSource.fileName.toLowerCase().includes('site')) {
+							tandemViewer.viewer.hideModel(model.id);
+							return;
+						} else if (!model.modelProps.dataSource.fileName.toLowerCase().includes('structural')) {
+							return;
+						}
+
+						// shader test-------
+						const materialManager = tandemViewer.viewer.impl.matman();
+						const tree = model.getInstanceTree();
+						const frags = model.getFragmentList();
+						const allDbIds: number[] = [];
+						tree.enumNodeChildren(tree.getRootId(), function (dbId: any) {
+							allDbIds.push(dbId);
+						}, true);
+
+						allDbIds.forEach((dbId) => {
+							let customMaterial: any = null;
+
+							tree.enumNodeFragments(dbId, (fragId: any) => {
+								if (!customMaterial) {
+									const originalMaterial = frags.getMaterial(fragId);
+									customMaterial = originalMaterial.clone();
+
+									customMaterial.transparent = true;
+									customMaterial.opacity = 0.8;
+									customMaterial.emissive = new THREE.Color(0x393C56);
+									customMaterial.depthWrite = false;
+									customMaterial.depthTest = true;
+									customMaterial.flatShading = false;
+									customMaterial.needsUpdate = true;
+									customMaterial.side = THREE.DoubleSide;
+									customMaterial.color = new THREE.Color(0x049EF4);
+									customMaterial.specular = new THREE.Color(0x0C0C0E);
+									customMaterial.wireframe = false;
+
+									materialManager.addMaterial(`mycustom-${dbId}`, customMaterial, true);
+								}
+
+								frags.setMaterial(fragId, customMaterial);
+
+							});
+						});
+					});
+					tandemViewer.viewer.prefs.set('edgeRendering', false);
+					tandemViewer.viewer.impl.invalidate(true);
 					setIsReady(true);
 				},
 			});
-			
+
 			tandemViewer.viewer.listeners['aggregateSelection'].push({
 				once: false,
 				priority: 0,
@@ -191,6 +242,7 @@ function App() {
 					if (e.selections.length > 0) {
 						const model = e.selections[0].model;
 						const dbId = e.selections[0].dbIdArray[0];
+
 						console.log(`modelId: ${model.modelFacets.id}`);
 						console.log(`modelUrn: ${model.modelFacets.modelUrn}`);
 						console.log(`dbId: ${dbId}`);
@@ -305,6 +357,9 @@ function App() {
 							<div className={styles.textContainer}>
 								<h1>MossLab</h1>
 								<h2>Digital Twin</h2>
+							</div>
+							<div className={styles.animWrapper}>
+								<Lottie animationData={loadingAnim} loop={true} />
 							</div>
 							<div className={styles.loadingSpinner}></div>
 						</div>
