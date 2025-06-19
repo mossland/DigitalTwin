@@ -10,79 +10,103 @@
     background-color: #333333;
 }
 
-.uiContainer {
+.customContainer {
     max-width: 30vw;
     width: 800px;
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-    overflow-y: auto;
-    box-sizing: border-box;
-    padding: 1em;
-
-
+    height: 100dvh;
     position: fixed;
     right: 0;
     top: 0;
     z-index: 1000;
+    overflow-y: auto;
+    overflow-x: hidden;
 
-    .uiCard {
-        width: 100%;
-        background-color: #090139bb;
+    .filterContainer {
         box-sizing: border-box;
-        padding: 1em;
-        border-radius: 5px;
-        box-shadow: 0 0 10px 0 rgba(0, 0, 0, 0.5);
-        border: 1px solid #000000;
+        padding: 0 1em;
+        width: 100%;
+        height: 10dvh;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
 
-        .cardHead {
-            h1 {
-                margin: 0;
-                padding: 0;
-                font-size: 1em;
+        .filterItem {
+            display: inline-block;
+            font-size: 11px;
+
+            .filterButton {
+                &.selected {
+                    border: 1px solid #15f6b6;
+                }
+            }
+        }
+    }
+    .uiContainer {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        box-sizing: border-box;
+        padding: 0 1em 1em 1em;
+
+        .uiCard {
+            width: 100%;
+            background-color: #090139bb;
+            box-sizing: border-box;
+            padding: 1em;
+            border-radius: 5px;
+            box-shadow: 0 0 10px 0 rgba(0, 0, 0, 0.5);
+            border: 1px solid #000000;
+
+            .cardHead {
+                h1 {
+                    margin: 0;
+                    padding: 0;
+                    font-size: 1em;
+                }
+
+                font-size: 14px;
             }
 
-            font-size: 14px;
-        }
+            .cardBody {
+                box-sizing: border-box;
+                padding: 10px 0;
 
-        .cardBody {
-            box-sizing: border-box;
-            padding: 10px 0;
+                .cardBodyItem {
+                    h2 {
+                        font-size: 14px;
+                        font-weight: 400;
+                        color: #15f6b6;
+                        padding: 0;
+                        margin: 0;
+                    }
 
-            .cardBodyItem {
-                h2 {
-                    font-size: 14px;
-                    font-weight: 400;
-                    color: #15f6b6;
-                    padding: 0;
-                    margin: 0;
-                }
+                    p {
+                        margin: 0;
+                        padding: 0;
+                        font-size: 14px;
+                        font-weight: 400;
+                        white-space: pre-wrap;
+                        overflow-wrap: anywhere;
+                    }
 
-                p {
-                    margin: 0;
-                    padding: 0;
-                    font-size: 14px;
-                    font-weight: 400;
-                    white-space: pre-wrap;
-                    overflow-wrap: anywhere;
-                }
+                    .chartWrapper {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 20px;
+                        background: #00000062;
+                        box-sizing: border-box;
+                        padding: 5px 15px;
+                        margin: 20px 0;
+                        border-radius: 5px;
 
-                .chartWrapper {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 20px;
-                    background: #00000062;
-                    box-sizing: border-box;
-                    padding: 5px 15px;
-                    margin: 20px 0;
-                    border-radius: 5px;
-
-                    &:last-child {
-                        margin-bottom: 0;
+                        &:last-child {
+                            margin-bottom: 0;
+                        }
                     }
                 }
-            }
 
+            }
         }
     }
 }

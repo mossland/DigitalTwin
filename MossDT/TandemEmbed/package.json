@@ -14,6 +14,8 @@
     "bluebird": "^3.7.2",
     "chart.js": "^4.4.9",
     "dayjs": "^1.11.13",
+    "dexie": "^4.0.11",
+    "dexie-react-hooks": "^1.1.7",
     "lottie-react": "^2.4.1",
     "papaparse": "^5.5.2",
     "react": "^19.0.0",

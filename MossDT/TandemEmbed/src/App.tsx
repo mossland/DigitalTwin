@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import bluebird from 'bluebird';
 import dayjs from 'dayjs';
 import { Chart } from 'chart.js/auto';
@@ -168,6 +168,19 @@ function App() {
 		return buf.substring(start, end); // 클래스 이름 추출
 	}
 
+	const [allMd, setAllMd] = useState<{ [key: string]: { fileName: string } }>({});
+	const [filterSelectIdx, setFilterSelectIdx] = useState<number>(0);
+
+	const onFilterModel = useCallback((selectModelKeyword: string) => {
+		if (!tandemViewer) {
+			return;
+		}
+
+		const allModels = tandemViewer.viewer.getAllModels();
+	}, [ tandemViewer ])
+
+	const originalShader = useRef<any>({});
+
 	useEffect(() => {
 		const initTandemViewer = async () => {
 			await ConnectionConfigManager.instance.loadData();
@@ -183,54 +196,71 @@ function App() {
 				priority: 0,
 				callbackFn: async (_: any) => {
 					tandemViewer.viewer.setLightPreset('Dark Sky');
-					const allModels = tandemViewer.viewer.getAllModels();
-					allModels.forEach((model: any) => {
-						if (model.modelProps.dataSource.fileName.toLowerCase().includes('architectural') || model.modelProps.dataSource.fileName.toLowerCase().includes('facades') || model.modelProps.dataSource.fileName.toLowerCase().includes('site')) {
-							tandemViewer.viewer.hideModel(model.id);
-							return;
-						} else if (!model.modelProps.dataSource.fileName.toLowerCase().includes('structural')) {
-							return;
-						}
+					tandemViewer.viewer.setDisplayEdges(false);
+					tandemViewer.viewer.setGroundShadow(false);
+					// const allModels = tandemViewer.viewer.getAllModels();
+					// allModels.forEach((model: any) => {
+					// 	if (model.modelProps.dataSource.fileName.toLowerCase().includes('electrical') || model.modelProps.dataSource.fileName.toLowerCase().includes('hvac') || model.modelProps.dataSource.fileName.toLowerCase().includes('plumbing')) {
+					// 		setAllMd((prev) => {
+					// 			return {
+					// 				...prev,
+					// 				[model.modelFacets.modelUrn]: {
+					// 					fileName: model.modelProps.dataSource.fileName,
+					// 				}
+					// 			}
+					// 		});
+					// 	}
 
-						// shader test-------
-						const materialManager = tandemViewer.viewer.impl.matman();
-						const tree = model.getInstanceTree();
-						const frags = model.getFragmentList();
-						const allDbIds: number[] = [];
-						tree.enumNodeChildren(tree.getRootId(), function (dbId: any) {
-							allDbIds.push(dbId);
-						}, true);
+						
+					// 	// shader test-------
+					// 	const materialManager = tandemViewer.viewer.impl.matman();
+					// 	const tree = model.getInstanceTree();
+					// 	const frags = model.getFragmentList();
+					// 	const allDbIds: number[] = [];
+					// 	tree.enumNodeChildren(tree.getRootId(), function (dbId: any) {
+					// 		allDbIds.push(dbId);
+					// 	}, true);
 
-						allDbIds.forEach((dbId) => {
-							let customMaterial: any = null;
+					// 	allDbIds.forEach((dbId) => {
+					// 		let customMaterial: any = null;
 
-							tree.enumNodeFragments(dbId, (fragId: any) => {
-								if (!customMaterial) {
-									const originalMaterial = frags.getMaterial(fragId);
-									customMaterial = originalMaterial.clone();
+					// 		tree.enumNodeFragments(dbId, (fragId: any) => {
+					// 			if (!customMaterial) {
+					// 				const originalMaterial = frags.getMaterial(fragId);
 
-									customMaterial.transparent = true;
-									customMaterial.opacity = 0.8;
-									customMaterial.emissive = new THREE.Color(0x393C56);
-									customMaterial.depthWrite = false;
-									customMaterial.depthTest = true;
-									customMaterial.flatShading = false;
-									customMaterial.needsUpdate = true;
-									customMaterial.side = THREE.DoubleSide;
-									customMaterial.color = new THREE.Color(0x049EF4);
-									customMaterial.specular = new THREE.Color(0x0C0C0E);
-									customMaterial.wireframe = false;
+					// 				originalShader.current[dbId] = originalMaterial;
 
-									materialManager.addMaterial(`mycustom-${dbId}`, customMaterial, true);
-								}
+					// 				if (model.modelProps.dataSource.fileName.toLowerCase().includes('architectural') || model.modelProps.dataSource.fileName.toLowerCase().includes('facades') || model.modelProps.dataSource.fileName.toLowerCase().includes('site')) {
+					// 					tandemViewer.viewer.hideModel(model.id);
+					// 					return;
+					// 				} else if (!model.modelProps.dataSource.fileName.toLowerCase().includes('structural')) {
+					// 					return;
+					// 				}
 
-								frags.setMaterial(fragId, customMaterial);
+					// 				customMaterial = originalMaterial.clone();
 
-							});
-						});
-					});
-					tandemViewer.viewer.prefs.set('edgeRendering', false);
-					tandemViewer.viewer.impl.invalidate(true);
+					// 				customMaterial.transparent = true;
+					// 				customMaterial.opacity = 0.8;
+					// 				customMaterial.emissive = new THREE.Color(0x393C56);
+					// 				customMaterial.depthWrite = false;
+					// 				customMaterial.depthTest = true;
+					// 				customMaterial.flatShading = false;
+					// 				customMaterial.needsUpdate = true;
+					// 				customMaterial.side = THREE.DoubleSide;
+					// 				customMaterial.color = new THREE.Color(0x049EF4);
+					// 				customMaterial.specular = new THREE.Color(0x0C0C0E);
+					// 				customMaterial.wireframe = false;
+
+					// 				materialManager.addMaterial(`mycustom-${dbId}`, customMaterial, true);
+					// 			}
+
+					// 			frags.setMaterial(fragId, customMaterial);
+
+					// 		});
+					// 	});
+					// });
+					// tandemViewer.viewer.prefs.set('edgeRendering', false);
+					// tandemViewer.viewer.impl.invalidate(true);
 					setIsReady(true);
 				},
 			});
@@ -240,8 +270,18 @@ function App() {
 				priority: 0,
 				callbackFn: async (e: any) => {
 					if (e.selections.length > 0) {
+						console.log(e.selections[0]);
 						const model = e.selections[0].model;
 						const dbId = e.selections[0].dbIdArray[0];
+
+						// e.selections[0].fragIdsArray.forEach((fragId: any) => {
+						// 	const renderProxy = tandemViewer.viewer.impl.getRenderProxy(
+						// 		e.selections[0].model,
+						// 		fragId,
+						// 	);
+						// 	animatedProxies.current.push(renderProxy as any);
+						// });
+						
 
 						console.log(`modelId: ${model.modelFacets.id}`);
 						console.log(`modelUrn: ${model.modelFacets.modelUrn}`);
@@ -366,6 +406,24 @@ function App() {
 					)
 				}
 			</div>
+			<section className={styles.customContainer}>
+			{
+				<div className={styles.filterContainer}>
+					<h6>Filter</h6>
+					<div className={styles.filterItem}>
+						<button className={[styles.filterButton, filterSelectIdx === 0 ? styles.selected : ''].join(' ')}>All</button>
+					</div>
+					{
+						Object.keys(allMd).map((key, idx) => {
+							return (
+								<div className={styles.filterItem} key={key}>
+									<button className={[styles.filterButton, filterSelectIdx === idx+1 ? styles.selected : ''].join(' ')}>{allMd[key].fileName.replace(/Snowdon Towers Sample/, '').replace(/\.rvt/, '')}</button>
+								</div>
+							)
+						})
+					}
+				</div>
+			}
 			{
 				showUi && (
 					<div className={styles.uiContainer}>
@@ -406,6 +464,7 @@ function App() {
 					</div>
 				)
 			}
+			</section>
 		</>
 	)
 }
