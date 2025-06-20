@@ -4,8 +4,10 @@ import dayjs from 'dayjs';
 import { Chart } from 'chart.js/auto';
 import * as THREE from 'three';
 import Lottie from "lottie-react";
-import loadingAnim from './loading.json';
+import { Tree, NodeRendererProps } from 'react-arborist'; // React Arborist 임포트
 
+// --- 아래 3개 파일은 실제 프로젝트 경로에 맞게 수정해야 합니다. ---
+import loadingAnim from './loading.json';
 import TandemClient, { IStreamDataResponse } from './util/TandemClient';
 import TandemViewer from './util/TandemViewer';
 import ConnectionConfigManager, { IConnectionConfig } from './util/ConnectionConfigManager';
@@ -21,6 +23,14 @@ export interface IStreamData {
 	metadata: IConnectionConfig;
 	value: IStreamDataResponse;
 	schema: { [key: string]: { name: string, forgeUnit: string, forgeSymbol: string, allowedValues?: { list?: string[], map?: { [key: string]: number } } } };
+}
+
+// Arborist 트리 노드 데이터 타입 정의
+export interface ITreeNode {
+	id: string;
+	name: string;
+	type: 'Level' | 'Space' | 'Asset';
+	children?: ITreeNode[];
 }
 
 const schemaColorSchems = [
@@ -40,13 +50,54 @@ const forgeUnitToAbbr: any = {
 	percentage: '%',
 }
 
+// AssetTree 컴포넌트: React Arborist 렌더링 담당
+function AssetTree({ data, isLoading, onActivate }: { data: ITreeNode[] | null, isLoading: boolean, onActivate: (node: any) => void }) {
+	if (isLoading) {
+		return <div className={styles.loadingText}>에셋 트리 구성 중...</div>;
+	}
+	if (!data) {
+		return null;
+	}
+
+	// 노드 렌더러 커스터마이징 (아이콘 추가)
+	const NodeRenderer = ({ node, style, dragHandle }: NodeRendererProps<ITreeNode>) => {
+		const iconClass = `node-${node.data.type.toLowerCase()}`;
+		return (
+			<div ref={dragHandle} style={style} className={`node-row ${styles.nodeRow}`} onClick={() => node.isInternal && node.toggle()}>
+				<span className={`node-name ${styles.nodeName} ${styles[iconClass]}`}>{node.data.name}</span>
+			</div>
+		);
+	};
+
+	return (
+		<div className={styles.treeWrapper}>
+			<Tree
+				data={data}
+				width="100%"
+				height={600} // 필요에 따라 높이 조절
+				openByDefault={false}
+				onActivate={onActivate}
+			>
+				{NodeRenderer}
+			</Tree>
+		</div>
+	);
+}
+
+
 function App() {
 	const [tandemViewer, setTandemViewer] = useState<TandemViewer | null>(null);
-
 	const [isReady, setIsReady] = useState<boolean>(false);
 	const [showUi, setShowUi] = useState<boolean>(true);
 	const [streamData, setStreamData] = useState<IStreamData | null>(null);
+
+	// --- 트리 뷰를 위한 상태 추가 ---
+	const [assetTreeData, setAssetTreeData] = useState<ITreeNode[] | null>(null);
+	const [isTreeLoading, setIsTreeLoading] = useState<boolean>(false);
+
+
 	const chartStreamData = useMemo(() => {
+		// ... (기존 차트 데이터 로직은 변경 없음)
 		if (!streamData) {
 			return {};
 		} else {
@@ -113,7 +164,91 @@ function App() {
 
 	const chartRef = useRef<Chart[]>([]);
 
+	// --- buildAssetTree 로직 구현 ---
+	const buildAssetTree = useCallback(async () => {
+		if (!tandemViewer) return;
+		if (!(window as any).tandemViewer) return;
+		setIsTreeLoading(true);
+
+		const viewerApp = (window as any).tandemViewer.app;
+		const DtConstants = (window as any).Autodesk.Tandem.DtConstants;
+
+		try {
+			console.log(viewerApp);
+			const models = viewerApp.getCurrentModels();
+			if (!models || models.length === 0) throw new Error("모델이 로드되지 않았습니다.");
+
+			const model = models[0];
+
+			const levelIds = await model.find({ query: [['props', [DtConstants.StandardPropertyNames.Category, 'eq', DtConstants.RevitCategory.Levels]]] });
+
+			const allIdsToFetch = new Set([...levelIds]);
+
+			const levelPromises = levelIds.map(async (levelId: string) => {
+				const levelNode: ITreeNode = { id: levelId, name: '', type: 'Level', children: [] };
+
+				const spaceIds = await model.find({
+					query: [
+						['keys', [levelId]],
+						['traverse', 'fwd', DtConstants.DtRelations.CONTAINS],
+						['props', [DtConstants.StandardPropertyNames.Category, 'in', [DtConstants.RevitCategory.Rooms, DtConstants.RevitCategory.Spaces]]]
+					]
+				});
+				spaceIds.forEach((id: string) => allIdsToFetch.add(id));
+
+				const spacePromises = spaceIds.map(async (spaceId: string) => {
+					const spaceNode: ITreeNode = { id: spaceId, name: '', type: 'Space', children: [] };
+
+					const assetIds = await model.find({
+						query: [
+							['keys', [spaceId]],
+							['traverse', 'fwd', DtConstants.DtRelations.CONTAINS],
+							['props', [DtConstants.StandardPropertyNames.Category, 'not in', [
+								DtConstants.RevitCategory.Rooms, DtConstants.RevitCategory.Spaces, DtConstants.RevitCategory.Levels,
+								DtConstants.RevitCategory.Walls, DtConstants.RevitCategory.Floors, DtConstants.RevitCategory.Ceilings
+							]]]
+						]
+					});
+
+					assetIds.forEach((id: string) => {
+						allIdsToFetch.add(id);
+						spaceNode.children?.push({ id, name: '', type: 'Asset' });
+					});
+					return (spaceNode.children && spaceNode.children.length > 0) ? spaceNode : null;
+				});
+
+				const spaceNodes = (await bluebird.all(spacePromises)).filter(Boolean) as ITreeNode[];
+				levelNode.children = spaceNodes;
+				return (levelNode.children && levelNode.children.length > 0) ? levelNode : null;
+			});
+
+			const levelNodes = (await bluebird.all(levelPromises)).filter(Boolean) as ITreeNode[];
+
+			const allProps = await model.getQualifiedProperties(Array.from(allIdsToFetch), [DtConstants.StandardPropertyNames.Name]);
+
+			const finalTreeData = levelNodes.map(node => {
+				const populateNames = (n: ITreeNode): ITreeNode => {
+					n.name = allProps[n.id]?.[DtConstants.StandardPropertyNames.Name] || `Unnamed (${n.type})`;
+					if (n.children) {
+						n.children.forEach(populateNames);
+					}
+					return n;
+				};
+				return populateNames(node);
+			});
+
+			setAssetTreeData(finalTreeData);
+
+		} catch (error: any) {
+			console.error("에셋 트리 구성 중 오류 발생:", error);
+			// setError(error.message); // 필요 시 에러 상태 추가
+		} finally {
+			setIsTreeLoading(false);
+		}
+	}, [tandemViewer]);
+
 	useEffect(() => {
+		// ... (기존 차트 관련 useEffect는 변경 없음)
 		if (!chartStreamData || Object.keys(chartStreamData).length === 0) {
 			return;
 		}
@@ -139,10 +274,11 @@ function App() {
 				chartRef.current.push(chartObj);
 			});
 		}
-	}, [chartStreamData])
+	}, [chartStreamData]);
 
 	const viewerRef = useRef<HTMLDivElement>(null);
 	function corruptedStringToUint8Array(str: string) {
+		// ... (기존 유틸 함수 변경 없음)
 		const uint8Array = new Uint8Array(str.length * 2);
 		for (let i = 0; i < str.length; i++) {
 			const code = str.charCodeAt(i);
@@ -152,12 +288,14 @@ function App() {
 		return uint8Array;
 	}
 	function uint8ToBase64Url(uint8Array: Uint8Array) {
+		// ... (기존 유틸 함수 변경 없음)
 		let binary = '';
 		uint8Array.forEach((byte: number) => binary += String.fromCharCode(byte));
 		const base64 = btoa(binary);
 		return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 	}
 	function getClassNameByDbId(dbId: number, dbId2Class: any) {
+		// ... (기존 유틸 함수 변경 없음)
 		const { sid2idx, buf, idx } = dbId2Class;
 		const classIdx = sid2idx[dbId] - 1; // dbId로 클래스 인덱스 얻기
 		if (classIdx < 0) {
@@ -172,12 +310,13 @@ function App() {
 	const [filterSelectIdx, setFilterSelectIdx] = useState<number>(0);
 
 	const onFilterModel = useCallback((selectModelKeyword: string) => {
+		// ... (기존 필터 로직 변경 없음)
 		if (!tandemViewer) {
 			return;
 		}
 
 		const allModels = tandemViewer.viewer.getAllModels();
-	}, [ tandemViewer ])
+	}, [tandemViewer]);
 
 	const originalShader = useRef<any>({});
 
@@ -191,6 +330,8 @@ function App() {
 			const facilityList = await tandemViewer.fetchFacilities();
 
 			await tandemViewer.openFacility(facilityList[0]);
+
+			// dtFacetsLoaded 콜백에서 buildAssetTree 호출
 			tandemViewer.app.listeners['dtFacetsLoaded'].push({
 				once: true,
 				priority: 0,
@@ -198,74 +339,15 @@ function App() {
 					tandemViewer.viewer.setLightPreset('Dark Sky');
 					tandemViewer.viewer.setDisplayEdges(false);
 					tandemViewer.viewer.setGroundShadow(false);
-					// const allModels = tandemViewer.viewer.getAllModels();
-					// allModels.forEach((model: any) => {
-					// 	if (model.modelProps.dataSource.fileName.toLowerCase().includes('electrical') || model.modelProps.dataSource.fileName.toLowerCase().includes('hvac') || model.modelProps.dataSource.fileName.toLowerCase().includes('plumbing')) {
-					// 		setAllMd((prev) => {
-					// 			return {
-					// 				...prev,
-					// 				[model.modelFacets.modelUrn]: {
-					// 					fileName: model.modelProps.dataSource.fileName,
-					// 				}
-					// 			}
-					// 		});
-					// 	}
 
-						
-					// 	// shader test-------
-					// 	const materialManager = tandemViewer.viewer.impl.matman();
-					// 	const tree = model.getInstanceTree();
-					// 	const frags = model.getFragmentList();
-					// 	const allDbIds: number[] = [];
-					// 	tree.enumNodeChildren(tree.getRootId(), function (dbId: any) {
-					// 		allDbIds.push(dbId);
-					// 	}, true);
+					await buildAssetTree(); // 트리 빌드 함수 호출
 
-					// 	allDbIds.forEach((dbId) => {
-					// 		let customMaterial: any = null;
-
-					// 		tree.enumNodeFragments(dbId, (fragId: any) => {
-					// 			if (!customMaterial) {
-					// 				const originalMaterial = frags.getMaterial(fragId);
-
-					// 				originalShader.current[dbId] = originalMaterial;
-
-					// 				if (model.modelProps.dataSource.fileName.toLowerCase().includes('architectural') || model.modelProps.dataSource.fileName.toLowerCase().includes('facades') || model.modelProps.dataSource.fileName.toLowerCase().includes('site')) {
-					// 					tandemViewer.viewer.hideModel(model.id);
-					// 					return;
-					// 				} else if (!model.modelProps.dataSource.fileName.toLowerCase().includes('structural')) {
-					// 					return;
-					// 				}
-
-					// 				customMaterial = originalMaterial.clone();
-
-					// 				customMaterial.transparent = true;
-					// 				customMaterial.opacity = 0.8;
-					// 				customMaterial.emissive = new THREE.Color(0x393C56);
-					// 				customMaterial.depthWrite = false;
-					// 				customMaterial.depthTest = true;
-					// 				customMaterial.flatShading = false;
-					// 				customMaterial.needsUpdate = true;
-					// 				customMaterial.side = THREE.DoubleSide;
-					// 				customMaterial.color = new THREE.Color(0x049EF4);
-					// 				customMaterial.specular = new THREE.Color(0x0C0C0E);
-					// 				customMaterial.wireframe = false;
-
-					// 				materialManager.addMaterial(`mycustom-${dbId}`, customMaterial, true);
-					// 			}
-
-					// 			frags.setMaterial(fragId, customMaterial);
-
-					// 		});
-					// 	});
-					// });
-					// tandemViewer.viewer.prefs.set('edgeRendering', false);
-					// tandemViewer.viewer.impl.invalidate(true);
 					setIsReady(true);
 				},
 			});
 
 			tandemViewer.viewer.listeners['aggregateSelection'].push({
+				// ... (기존 선택 이벤트 리스너 변경 없음)
 				once: false,
 				priority: 0,
 				callbackFn: async (e: any) => {
@@ -274,14 +356,6 @@ function App() {
 						const model = e.selections[0].model;
 						const dbId = e.selections[0].dbIdArray[0];
 
-						// e.selections[0].fragIdsArray.forEach((fragId: any) => {
-						// 	const renderProxy = tandemViewer.viewer.impl.getRenderProxy(
-						// 		e.selections[0].model,
-						// 		fragId,
-						// 	);
-						// 	animatedProxies.current.push(renderProxy as any);
-						// });
-						
 
 						console.log(`modelId: ${model.modelFacets.id}`);
 						console.log(`modelUrn: ${model.modelFacets.modelUrn}`);
@@ -385,7 +459,17 @@ function App() {
 				});
 			}
 		}
+	}, [tandemViewer, buildAssetTree]); // buildAssetTree를 의존성 배열에 추가
+
+	// 트리 노드 클릭 핸들러
+	const onActivateNode = useCallback(({ node }: { node: any }) => {
+		if (tandemViewer && node.data.id) {
+			console.log(`노드 선택: ${node.data.name} (${node.data.id})`);
+			tandemViewer.app.setSelection([node.data.id], true);
+			tandemViewer.app.viewer.fitToView([node.data.id]);
+		}
 	}, [tandemViewer]);
+
 
 	return (
 		<>
@@ -407,63 +491,68 @@ function App() {
 				}
 			</div>
 			<section className={styles.customContainer}>
-			{
-				<div className={styles.filterContainer}>
-					<h6>Filter</h6>
-					<div className={styles.filterItem}>
-						<button className={[styles.filterButton, filterSelectIdx === 0 ? styles.selected : ''].join(' ')}>All</button>
-					</div>
-					{
-						Object.keys(allMd).map((key, idx) => {
-							return (
-								<div className={styles.filterItem} key={key}>
-									<button className={[styles.filterButton, filterSelectIdx === idx+1 ? styles.selected : ''].join(' ')}>{allMd[key].fileName.replace(/Snowdon Towers Sample/, '').replace(/\.rvt/, '')}</button>
-								</div>
-							)
-						})
-					}
-				</div>
-			}
-			{
-				showUi && (
-					<div className={styles.uiContainer}>
+				{ /* --- 필터와 트리 뷰를 감싸는 사이드바 추가 --- */}
+				<div className={styles.sidebar}>
+					<div className={styles.filterContainer}>
+						<h6>Filter</h6>
+						<div className={styles.filterItem}>
+							<button className={[styles.filterButton, filterSelectIdx === 0 ? styles.selected : ''].join(' ')}>All</button>
+						</div>
 						{
-							streamData ?
-								<div className={styles.uiCard}>
-									<div className={styles.cardHead}>
-										<h1>{streamData?.metadata.Name}</h1>
-										<div className={styles.subtitle}>
-											{streamData?.metadata["Assembly Code"]} / {streamData?.metadata["Classification"]} / {streamData?.metadata.fullId}
-										</div>
+							Object.keys(allMd).map((key, idx) => {
+								return (
+									<div className={styles.filterItem} key={key}>
+										<button className={[styles.filterButton, filterSelectIdx === idx + 1 ? styles.selected : ''].join(' ')}>{allMd[key].fileName.replace(/Snowdon Towers Sample/, '').replace(/\.rvt/, '')}</button>
 									</div>
-									<div className={styles.cardBody}>
-										<div className={styles.cardBodyItem}>
-
-											{
-												Object.keys(chartStreamData).map((key) => {
-													return (<div className={styles.chartWrapper} key={key}>
-														<h2>{key}</h2>
-														<canvas id={`chart-${key}`}></canvas>
-													</div>);
-												})
-											}
-
-											{isDebug && (
-												<p>
-													{JSON.stringify(chartStreamData)}
-													{/* {JSON.stringify(streamData?.value)} */}
-												</p>
-											)}
-										</div>
-									</div>
-								</div>
-								:
-								null
+								)
+							})
 						}
-
 					</div>
-				)
-			}
+					<AssetTree
+						data={assetTreeData}
+						isLoading={isTreeLoading}
+						onActivate={onActivateNode}
+					/>
+				</div>
+				{
+					showUi && (
+						<div className={styles.uiContainer}>
+							{
+								streamData ?
+									<div className={styles.uiCard}>
+										<div className={styles.cardHead}>
+											<h1>{streamData?.metadata.Name}</h1>
+											<div className={styles.subtitle}>
+												{streamData?.metadata["Assembly Code"]} / {streamData?.metadata["Classification"]} / {streamData?.metadata.fullId}
+											</div>
+										</div>
+										<div className={styles.cardBody}>
+											<div className={styles.cardBodyItem}>
+
+												{
+													Object.keys(chartStreamData).map((key) => {
+														return (<div className={styles.chartWrapper} key={key}>
+															<h2>{key}</h2>
+															<canvas id={`chart-${key}`}></canvas>
+														</div>);
+													})
+												}
+
+												{isDebug && (
+													<p>
+														{JSON.stringify(chartStreamData)}
+													</p>
+												)}
+											</div>
+										</div>
+									</div>
+									:
+									null
+							}
+
+						</div>
+					)
+				}
 			</section>
 		</>
 	)
